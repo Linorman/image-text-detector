@@ -1,50 +1,31 @@
-import asyncio
-import base64
-import io
-
-import cv2
-from aiohttp.web_middlewares import middleware
-from omegaconf import OmegaConf
-import langcodes
-import requests
+import logging
 import os
 import re
-import torch
-import time
-import logging
+from typing import List, Union
+
+import cv2
 import numpy as np
+import torch
 from PIL import Image
-from typing import List, Tuple, Union
-from aiohttp import web
-from marshmallow import Schema, fields, ValidationError
+from omegaconf import OmegaConf
 
-from image_text_detector.utils.threading import Throttler
-
-from .args import DEFAULT_ARGS, translator_chain
+from .args import DEFAULT_ARGS
+from .colorization import dispatch as dispatch_colorization, prepare as prepare_colorization
+from .detection import dispatch as dispatch_detection, prepare as prepare_detection
+from .ocr import dispatch as dispatch_ocr, prepare as prepare_ocr
+from .save import save_result
+from .upscaling import dispatch as dispatch_upscaling, prepare as prepare_upscaling
 from .utils import (
     BASE_PATH,
-    LANGUAGE_ORIENTATION_PRESETS,
     ModelWrapper,
     Context,
-    PriorityLock,
     load_image,
-    dump_image,
     replace_prefix,
-    visualize_textblocks,
-    add_file_logger,
-    remove_file_logger,
-    is_valuable_text,
     rgb2hex,
     hex2rgb,
     get_color_name,
     natural_sort,
-    sort_regions,
 )
-
-from .detection import DETECTORS, dispatch as dispatch_detection, prepare as prepare_detection
-from .upscaling import dispatch as dispatch_upscaling, prepare as prepare_upscaling, UPSCALERS
-from .colorization import dispatch as dispatch_colorization, prepare as prepare_colorization
-from .save import save_result
 
 # Will be overwritten by __main__.py if module is being run directly (with python -m)
 logger = logging.getLogger('image_text_detector')
@@ -63,7 +44,7 @@ class TranslationInterrupt(Exception):
     pass
 
 
-class MangaTranslator():
+class TextDetector:
 
     def __init__(self, params: dict = None):
         self._progress_hooks = []

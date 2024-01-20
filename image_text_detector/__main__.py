@@ -4,7 +4,7 @@ import logging
 from argparse import Namespace
 
 from .image_text_detector import (
-    MangaTranslator,
+    TextDetector,
     set_main_logger,
 )
 from .args import parser
@@ -27,7 +27,7 @@ async def dispatch(args: Namespace):
     if args.mode in ('demo', 'batch'):
         if not args.input:
             raise Exception('No input image was supplied. Use -i <image_path>')
-        translator = MangaTranslator(args_dict)
+        translator = TextDetector(args_dict)
         if args.mode == 'demo':
             if len(args.input) != 1 or not os.path.isfile(args.input[0]):
                 raise FileNotFoundError(
