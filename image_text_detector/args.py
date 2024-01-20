@@ -44,16 +44,6 @@ def dir_path(string):
     return s
 
 
-def translator_chain(string):
-    try:
-        return TranslatorChain(string)
-    except ValueError as e:
-        raise argparse.ArgumentTypeError(e)
-    except Exception:
-        raise argparse.ArgumentTypeError(
-            f'Invalid translator_chain value: "{string}". Example usage: --translator "google:sugoi" -l "JPN:ENG"')
-
-
 class HelpFormatter(argparse.HelpFormatter):
     INDENT_INCREMENT = 2
     MAX_HELP_POSITION = 24
@@ -90,8 +80,6 @@ parser.add_argument('-i', '--input', default=None, type=path, nargs='+',
                     help='Path to an image file if using demo mode, or path to an image folder if using batch mode')
 parser.add_argument('-o', '--dest', default='', type=str,
                     help='Path to the destination folder for translated images in batch mode')
-parser.add_argument('-l', '--target-lang', default='CHS', type=str, choices=VALID_LANGUAGES,
-                    help='Destination language')
 parser.add_argument('-v', '--verbose', action='store_true',
                     help='Print debug info and save intermediate images in result folder')
 parser.add_argument('-f', '--format', default=None, choices=OUTPUT_FORMATS, help='Output format of the translation.')
@@ -111,7 +99,6 @@ parser.add_argument('--detector', default='default', type=str, choices=DETECTORS
                     help='Text detector used for creating a text mask from an image, DO NOT use craft for manga, it\'s not designed for it')
 parser.add_argument('--ocr', default='48px', type=str, choices=OCRS,
                     help='Optical character recognition (OCR) model to use')
-parser.add_argument('--inpainter', default='lama_large', type=str, choices=INPAINTERS, help='Inpainting model to use')
 parser.add_argument('--upscaler', default='esrgan', type=str, choices=UPSCALERS,
                     help='Upscaler to use. --upscale-ratio has to be set for it to take effect')
 parser.add_argument('--upscale-ratio', default=None, type=float,
@@ -119,11 +106,6 @@ parser.add_argument('--upscale-ratio', default=None, type=float,
 parser.add_argument('--colorizer', default=None, type=str, choices=COLORIZERS, help='Colorization model to use.')
 
 g = parser.add_mutually_exclusive_group()
-g.add_argument('--translator', default='google', type=str, choices=TRANSLATORS, help='Language translator to use')
-g.add_argument('--translator-chain', default=None, type=translator_chain,
-               help='Output of one translator goes in another. Example: --translator-chain "google:JPN;sugoi:ENG".')
-g.add_argument('--selective-translation', default=None, type=translator_chain,
-               help='Select a translator based on detected language in image. Note the first translation service acts as default if the language isn\'t defined. Example: --translator-chain "google:JPN;sugoi:ENG".')
 
 parser.add_argument('--revert-upscaling', action='store_true',
                     help='Downscales the previously upscaled image after translation back to original size (Use with --upscale-ratio).')
