@@ -25,6 +25,7 @@ from .utils import (
     hex2rgb,
     get_color_name,
     natural_sort,
+    save_image_detect_result
 )
 
 # Will be overwritten by __main__.py if module is being run directly (with python -m)
@@ -47,6 +48,10 @@ class TranslationInterrupt(Exception):
 class TextDetector:
 
     def __init__(self, params: dict = None):
+        self.device = None
+        self._gpu_limited_memory = None
+        self.ignore_errors = None
+        self.verbose = None
         self._progress_hooks = []
         self._add_logger_hook()
 
@@ -72,8 +77,8 @@ class TextDetector:
             self.device = device
         if self.using_gpu and (not torch.cuda.is_available() and not torch.backends.mps.is_available()):
             raise Exception(
-                'CUDA or Metal compatible device could not be found in torch whilst --use-gpu args was set.\n' \
-                'Is the correct pytorch version installed? (See https://pytorch.org/)')
+                'CUDA or Metal compatible device could not be found in torch whilst --use-gpu args was set.\n''Is the '
+                'correct pytorch version installed? (See https://pytorch.org/)')
         if params.get('model_dir'):
             ModelWrapper._MODEL_DIR = params.get('model_dir')
 
@@ -83,7 +88,7 @@ class TextDetector:
     def using_gpu(self):
         return self.device.startswith('cuda') or self.device == 'mps'
 
-    async def translate_path(self, path: str, dest: str = None, params: dict = None):
+    async def detect_path(self, path: str, dest: str = None, params: dict = None):
         """
         Translates an image or folder (recursively) specified through the path.
         """
@@ -117,7 +122,7 @@ class TextDetector:
             else:
                 p, ext = os.path.splitext(dest)
                 _dest = f'{p}.{file_ext or ext[1:]}'
-            await self.translate_file(path, _dest, params)
+            await self.detect_file(path, _dest, params)
 
         elif os.path.isdir(path):
             # Determine destination folder path
@@ -141,21 +146,21 @@ class TextDetector:
                     p, ext = os.path.splitext(output_dest)
                     output_dest = f'{p}.{file_ext or ext[1:]}'
 
-                    if await self.translate_file(file_path, output_dest, params):
+                    if await self.detect_file(file_path, output_dest, params):
                         translated_count += 1
             if translated_count == 0:
                 logger.info('No further untranslated files found. Use --overwrite to write over existing translations.')
             else:
                 logger.info(f'Done. Translated {translated_count} image{"" if translated_count == 1 else "s"}')
 
-    async def translate_file(self, path: str, dest: str, params: dict):
+    async def detect_file(self, path: str, dest: str, params: dict):
         if not params.get('overwrite') and os.path.exists(dest):
             logger.info(
                 f'Skipping as already translated: "{dest}". Use --overwrite to overwrite existing translations.')
             await self._report_progress('saved', True)
             return True
 
-        logger.info(f'Translating: "{path}"')
+        logger.info(f'Handling: "{path}"')
 
         # Turn dict to context to make values also accessible through params.<property>
         params = params or {}
@@ -168,7 +173,7 @@ class TextDetector:
                 logger.info(f'Retrying translation! Attempt {attempts}'
                             + (f' of {ctx.attempts}' if ctx.attempts != -1 else ''))
             try:
-                return await self._translate_file(path, dest, ctx)
+                return await self._detect_file(path, dest, ctx)
 
             except TranslationInterrupt:
                 break
@@ -182,7 +187,7 @@ class TextDetector:
             attempts += 1
         return False
 
-    async def _translate_file(self, path: str, dest: str, ctx: Context):
+    async def _detect_file(self, path: str, dest: str, ctx: Context):
         if path.endswith('.txt'):
             with open(path, 'r') as f:
                 queries = f.read().split('\n')
@@ -192,42 +197,41 @@ class TextDetector:
             logger.info(f'Saving "{dest}"')
             return True
 
-        # TODO: Add .gif handler
-
         else:  # Treat as image
             try:
                 img = Image.open(path)
                 img.verify()
                 img = Image.open(path)
             except Exception:
-                logger.warn(f'Failed to open image: {path}')
+                logger.warning(f'Failed to open image: {path}')
                 return False
 
-            ctx = await self.translate(img, ctx)
+            ctx = await self.detect(img, ctx)
             result = ctx.result
 
+            # TODO: 可以删掉，或者替换为其他逻辑
             # Save result
-            if ctx.skip_no_text and not ctx.text_regions:
-                logger.debug('Not saving due to --skip-no-text')
-                return True
-            if result:
-                logger.info(f'Saving "{dest}"')
-                save_result(result, dest, ctx)
-                await self._report_progress('saved', True)
+            # if ctx.skip_no_text and not ctx.text_regions:
+            #     logger.debug('Not saving due to --skip-no-text')
+            #     return True
+            # if result:
+            #     logger.info(f'Saving "{dest}"')
+            #     save_result(result, dest, ctx)
+            #     await self._report_progress('saved', True)
+            #
+            #     if ctx.save_text or ctx.save_text_file or ctx.prep_manual:
+            #         if ctx.prep_manual:
+            #             # Save original image next to translated
+            #             p, ext = os.path.splitext(dest)
+            #             img_filename = p + '-orig' + ext
+            #             img_path = os.path.join(os.path.dirname(dest), img_filename)
+            #             img.save(img_path, quality=ctx.save_quality)
+            #         if ctx.text_regions:
+            #             self._save_text_to_file(path, ctx)
+            #     return True
+        return True
 
-                if ctx.save_text or ctx.save_text_file or ctx.prep_manual:
-                    if ctx.prep_manual:
-                        # Save original image next to translated
-                        p, ext = os.path.splitext(dest)
-                        img_filename = p + '-orig' + ext
-                        img_path = os.path.join(os.path.dirname(dest), img_filename)
-                        img.save(img_path, quality=ctx.save_quality)
-                    if ctx.text_regions:
-                        self._save_text_to_file(path, ctx)
-                return True
-        return False
-
-    async def translate(self, image: Image.Image, params: Union[dict, Context] = None) -> Context:
+    async def detect(self, image: Image.Image, params: Union[dict, Context] = None) -> Context:
         """
         Translates a PIL image from a manga. Returns dict with result and intermediates of translation.
         Default params are taken from args.py.
@@ -258,7 +262,7 @@ class TextDetector:
         if ctx.colorizer:
             await prepare_colorization(ctx.colorizer)
         # translate
-        return await self._translate(ctx)
+        return await self._detect(ctx)
 
     def _preprocess_params(self, ctx: Context):
         # params auto completion
@@ -286,12 +290,6 @@ class TextDetector:
             ctx.renderer = 'none'
         ctx.setdefault('renderer', 'manga2eng' if ctx.manga2eng else 'default')
 
-        if ctx.selective_translation is not None:
-            ctx.selective_translation.target_lang = ctx.target_lang
-            ctx.translator = ctx.selective_translation
-        elif ctx.translator_chain is not None:
-            ctx.target_lang = ctx.translator_chain.langs[-1]
-            ctx.translator = ctx.translator_chain
         if ctx.gpt_config:
             ctx.gpt_config = OmegaConf.load(ctx.gpt_config)
 
@@ -306,8 +304,8 @@ class TextDetector:
             except:
                 raise Exception(f'Invalid --font-color value: {ctx.font_color}. Use a hex value such as FF0000')
 
-    async def _translate(self, ctx: Context) -> Context:
-
+    async def _detect(self, ctx: Context) -> Context:
+        image_filename = ctx.input.filename
         # -- Colorization
         if ctx.colorizer:
             await self._report_progress('colorizing')
@@ -336,6 +334,7 @@ class TextDetector:
             await self._report_progress('skip-no-regions', True)
             # If no text was found result is intermediate image product
             ctx.result = ctx.upscaled
+            await save_image_detect_result(image_filename, "no text detected", tag=1, json_path=ctx.json_path)
             return ctx
         if self.verbose:
             img_bbox_raw = np.copy(ctx.img_rgb)
@@ -350,7 +349,9 @@ class TextDetector:
             await self._report_progress('skip-no-text', True)
             # If no text was found result is intermediate image product
             ctx.result = ctx.upscaled
+            await save_image_detect_result(image_filename, "no text ocr", tag=2, json_path=ctx.json_path)
             return ctx
+        await save_image_detect_result(image_filename, "some text detected", tag=0, json_path=ctx.json_path)
 
         if not ctx.text_regions:
             await self._report_progress('error-translating', True)
@@ -360,6 +361,7 @@ class TextDetector:
             await self._report_progress('cancelled', True)
             ctx.result = ctx.upscaled
             return ctx
+
         return ctx
 
     async def _run_colorizer(self, ctx: Context):
@@ -409,15 +411,12 @@ class TextDetector:
             'detection': 'Running text detection',
             'ocr': 'Running ocr',
             'mask-generation': 'Running mask refinement',
-            'translating': 'Running text translation',
-            'rendering': 'Running rendering',
             'colorizing': 'Running colorization',
             'downscaling': 'Running downscaling',
         }
         LOG_MESSAGES_SKIP = {
             'skip-no-regions': 'No text regions! - Skipping',
             'skip-no-text': 'No text regions with text! - Skipping',
-            'error-translating': 'Text translator returned empty queries',
             'cancelled': 'Image translation cancelled',
         }
         LOG_MESSAGES_ERROR = {

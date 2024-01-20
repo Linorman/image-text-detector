@@ -53,6 +53,8 @@ class ImageFormat(ExportFormat):
     SUPPORTED_FORMATS = ['png', 'webp']
 
     def _save(self, result: Image.Image, dest: str, ctx: Context):
+        # 确认dest文件所在的文件夹存在
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
         result.save(dest)
 
 

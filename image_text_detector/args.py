@@ -75,7 +75,8 @@ parser = argparse.ArgumentParser(prog='image_text_detector',
                                  formatter_class=HelpFormatter)
 parser.add_argument('-m', '--mode', default='batch', type=str,
                     choices=['demo', 'batch', 'web', 'web_client', 'ws', 'api'],
-                    help='Run demo in single image demo mode (demo), batch translation mode (batch), web service mode (web)')
+                    help='Run demo in single image demo mode (demo), batch translation mode (batch), web service mode '
+                         '(web)')
 parser.add_argument('-i', '--input', default=None, type=path, nargs='+',
                     help='Path to an image file if using demo mode, or path to an image folder if using batch mode')
 parser.add_argument('-o', '--dest', default='', type=str,
@@ -96,7 +97,8 @@ g.add_argument('--use-gpu', action='store_true', help='Turn on/off gpu (auto swi
 g.add_argument('--use-gpu-limited', action='store_true', help='Turn on/off gpu (excluding offline translator)')
 
 parser.add_argument('--detector', default='default', type=str, choices=DETECTORS,
-                    help='Text detector used for creating a text mask from an image, DO NOT use craft for manga, it\'s not designed for it')
+                    help='Text detector used for creating a text mask from an image, DO NOT use craft for manga, '
+                         'it\'s not designed for it')
 parser.add_argument('--ocr', default='48px', type=str, choices=OCRS,
                     help='Optical character recognition (OCR) model to use')
 parser.add_argument('--upscaler', default='esrgan', type=str, choices=UPSCALERS,
@@ -108,7 +110,8 @@ parser.add_argument('--colorizer', default=None, type=str, choices=COLORIZERS, h
 g = parser.add_mutually_exclusive_group()
 
 parser.add_argument('--revert-upscaling', action='store_true',
-                    help='Downscales the previously upscaled image after translation back to original size (Use with --upscale-ratio).')
+                    help='Downscales the previously upscaled image after translation back to original size (Use with '
+                         '--upscale-ratio).')
 parser.add_argument('--detection-size', default=1536, type=int, help='Size of image used for detection')
 parser.add_argument('--det-rotate', action='store_true',
                     help='Rotate the image for detection. Might improve detection.')
@@ -132,7 +135,8 @@ parser.add_argument('--inpainting-precision', default='fp32', type=str,
 parser.add_argument('--colorization-size', default=576, type=int,
                     help='Size of image used for colorization. Set to -1 to use full image size')
 parser.add_argument('--denoise-sigma', default=30, type=int,
-                    help='Used by colorizer and affects color strength, range from 0 to 255 (default 30). -1 turns it off.')
+                    help='Used by colorizer and affects color strength, range from 0 to 255 (default 30). -1 turns it '
+                         'off.')
 parser.add_argument('--mask-dilation-offset', default=0, type=int,
                     help='By how much to extend the text mask to remove left-over text pixels of the original image.')
 
@@ -142,9 +146,12 @@ parser.add_argument('--font-size-offset', default=0, type=int,
 parser.add_argument('--font-size-minimum', default=-1, type=int,
                     help='Minimum output font size. Default is image_sides_sum/200')
 parser.add_argument('--font-color', default=None, type=str,
-                    help='Overwrite the text fg/bg color detected by the OCR model. Use hex string without the "#" such as FFFFFF for a white foreground or FFFFFF:000000 to also have a black background around the text.')
+                    help='Overwrite the text fg/bg color detected by the OCR model. Use hex string without the "#" '
+                         'such as FFFFFF for a white foreground or FFFFFF:000000 to also have a black background '
+                         'around the text.')
 parser.add_argument('--line-spacing', default=None, type=float,
-                    help='Line spacing is font_size * this value. Default is 0.01 for horizontal text and 0.2 for vertical.')
+                    help='Line spacing is font_size * this value. Default is 0.01 for horizontal text and 0.2 for '
+                         'vertical.')
 
 g = parser.add_mutually_exclusive_group()
 g.add_argument('--force-horizontal', action='store_true', help='Force text to be rendered horizontally')
@@ -162,10 +169,12 @@ g.add_argument('--lowercase', action='store_true', help='Change text to lowercas
 parser.add_argument('--no-hyphenation', action='store_true',
                     help='If renderer should be splitting up words using a hyphen character (-)')
 parser.add_argument('--manga2eng', action='store_true',
-                    help='Render english text translated from manga with some additional typesetting. Ignores some other argument options')
+                    help='Render english text translated from manga with some additional typesetting. Ignores some '
+                         'other argument options')
 parser.add_argument('--gpt-config', type=file_path, help='Path to GPT config file, more info in README')
 parser.add_argument('--use-mtpe', action='store_true',
-                    help='Turn on/off machine translation post editing (MTPE) on the command line (works only on linux right now)')
+                    help='Turn on/off machine translation post editing (MTPE) on the command line (works only on '
+                         'linux right now)')
 
 g = parser.add_mutually_exclusive_group()
 g.add_argument('--save-text', action='store_true', help='Save extracted text and translations into a text file.')
@@ -174,7 +183,8 @@ g.add_argument('--save-text-file', default='', type=str, help='Like --save-text 
 parser.add_argument('--filter-text', default=None, type=str,
                     help='Filter regions by their text with a regex. Example usage: --text-filter ".*badtext.*"')
 parser.add_argument('--prep-manual', action='store_true',
-                    help='Prepare for manual typesetting by outputting blank, inpainted images, plus copies of the original for reference')
+                    help='Prepare for manual typesetting by outputting blank, inpainted images, plus copies of the '
+                         'original for reference')
 parser.add_argument('--font-path', default='', type=file_path, help='Path to font file')
 parser.add_argument('--gimp-font', default='Sans-serif', type=str, help='Font family to use for gimp rendering.')
 parser.add_argument('--host', default='127.0.0.1', type=str,
@@ -182,12 +192,13 @@ parser.add_argument('--host', default='127.0.0.1', type=str,
 parser.add_argument('--port', default=5003, type=int, help='Used by web module to decide which port to attach to')
 parser.add_argument('--nonce', default=os.getenv('MT_WEB_NONCE', ''), type=str,
                     help='Used by web module as secret for securing internal web server communication')
-# parser.add_argument('--log-web', action='store_true', help='Used by web module to decide if web logs should be surfaced')
 parser.add_argument('--ws-url', default='ws://localhost:5000', type=str, help='Server URL for WebSocket mode')
 parser.add_argument('--save-quality', default=100, type=int,
                     help='Quality of saved JPEG image, range from 0 to 100 with 100 being best')
 parser.add_argument('--ignore-bubble', default=0, type=int,
-                    help='The threshold for ignoring text in non bubble areas, with valid values ranging from 1 to 50, does not ignore others. Recommendation 5 to 10. If it is too low, normal bubble areas may be ignored, and if it is too large, non bubble areas may be considered normal bubbles')
-
-# Generares dict with a default value for each argument
+                    help='The threshold for ignoring text in non bubble areas, with valid values ranging from 1 to '
+                         '50, does not ignore others. Recommendation 5 to 10. If it is too low, normal bubble areas '
+                         'may be ignored, and if it is too large, non bubble areas may be considered normal bubbles')
+parser.add_argument('--json-path', default='', type=str, help='Path to json file')
+# Generates dict with a default value for each argument
 DEFAULT_ARGS = vars(parser.parse_args([]))

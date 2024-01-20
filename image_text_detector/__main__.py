@@ -34,27 +34,11 @@ async def dispatch(args: Namespace):
                     f'Invalid single image file path for demo mode: "{" ".join(args.input)}". Use `-m batch`.')
             dest = os.path.join(BASE_PATH, 'result/final.png')
             args.overwrite = True  # Do overwrite result/final.png file
-            await translator.translate_path(args.input[0], dest, args_dict)
+            await translator.detect_path(args.input[0], dest, args_dict)
         else:  # batch
             dest = args.dest
             for path in natural_sort(args.input):
-                await translator.translate_path(path, dest, args_dict)
-
-    elif args.mode == 'web':
-        from .server.web_main import dispatch
-        await dispatch(args.host, args.port, translation_params=args_dict)
-
-    elif args.mode == 'web_client':
-        translator = MangaTranslatorWeb(args_dict)
-        await translator.listen(args_dict)
-
-    elif args.mode == 'ws':
-        translator = MangaTranslatorWS(args_dict)
-        await translator.listen(args_dict)
-
-    elif args.mode == 'api':
-        translator = MangaTranslatorAPI(args_dict)
-        await translator.listen(args_dict)
+                await translator.detect_path(path, dest, args_dict)
 
 
 if __name__ == '__main__':
