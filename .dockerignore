@@ -1,9 +1,0 @@
-result
-*.ckpt
-*.pt
-.vscode
-*.onnx
-__pycache__
-ocrs
-models/*
-test/testdata/bboxes

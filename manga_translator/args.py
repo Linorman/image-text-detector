@@ -41,16 +41,6 @@ def dir_path(string):
         raise argparse.ArgumentTypeError(f'No such directory: "{string}"')
     return s
 
-# def choice_chain(choices):
-#     """Argument type for string chains from choices separated by ':'. Example: 'choice1:choice2:choice3'"""
-#     def _func(string):
-#         if choices is not None:
-#             for s in string.split(':') or ['']:
-#                 if s not in choices:
-#                     raise argparse.ArgumentTypeError(f'Invalid choice: %s (choose from %s)' % (s, ', '.join(map(repr, choices))))
-#         return string
-#     return _func
-
 def translator_chain(string):
     try:
         return TranslatorChain(string)
