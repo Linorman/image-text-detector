@@ -334,7 +334,10 @@ class TextDetector:
             await self._report_progress('skip-no-regions', True)
             # If no text was found result is intermediate image product
             ctx.result = ctx.upscaled
-            await save_image_detect_result(image_filename, "no text detected", tag=1, json_path=ctx.json_path)
+            if ctx.json_path is None:
+                await save_image_detect_result(image_filename, "no text detected", tag=1)
+            else:
+                await save_image_detect_result(image_filename, "no text detected", tag=1, json_path=ctx.json_path)
             return ctx
         if self.verbose:
             img_bbox_raw = np.copy(ctx.img_rgb)
@@ -349,9 +352,16 @@ class TextDetector:
             await self._report_progress('skip-no-text', True)
             # If no text was found result is intermediate image product
             ctx.result = ctx.upscaled
-            await save_image_detect_result(image_filename, "no text ocr", tag=2, json_path=ctx.json_path)
+            if ctx.json_path is None:
+                await save_image_detect_result(image_filename, "no text ocr", tag=2)
+            else:
+                await save_image_detect_result(image_filename, "no text ocr", tag=2, json_path=ctx.json_path)
             return ctx
-        await save_image_detect_result(image_filename, "some text detected", tag=0, json_path=ctx.json_path)
+
+        if ctx.json_path is None:
+            await save_image_detect_result(image_filename, "some text detected", tag=0)
+        else:
+            await save_image_detect_result(image_filename, "some text detected", tag=0, json_path=ctx.json_path)
 
         if not ctx.text_regions:
             await self._report_progress('error-translating', True)

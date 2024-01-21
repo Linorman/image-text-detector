@@ -5,7 +5,7 @@ import time
 
 import colorama
 
-from .generic import replace_prefix
+from .generic import replace_prefix, BASE_PATH
 
 ROOT_TAG = 'manga-translator'
 
@@ -68,7 +68,7 @@ def remove_file_logger(path: str):
         del file_handlers[path]
 
 
-async def save_image_detect_result(image_path, result, tag=0, json_path='.'):
+async def save_image_detect_result(image_path, result, tag=0, json_path=BASE_PATH):
     """
     以json格式保存文字识别结果
     Args:

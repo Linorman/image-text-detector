@@ -199,6 +199,6 @@ parser.add_argument('--ignore-bubble', default=0, type=int,
                     help='The threshold for ignoring text in non bubble areas, with valid values ranging from 1 to '
                          '50, does not ignore others. Recommendation 5 to 10. If it is too low, normal bubble areas '
                          'may be ignored, and if it is too large, non bubble areas may be considered normal bubbles')
-parser.add_argument('--json-path', default='', type=str, help='Path to json file')
+parser.add_argument('--json-path', type=str, help='Path to json file')
 # Generates dict with a default value for each argument
 DEFAULT_ARGS = vars(parser.parse_args([]))
