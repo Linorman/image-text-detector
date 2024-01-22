@@ -46,3 +46,4 @@ pyhyphen
 langcodes
 gradio
 pillow
+flask

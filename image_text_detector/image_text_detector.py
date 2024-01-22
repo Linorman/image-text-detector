@@ -1,19 +1,17 @@
 import logging
 import os
 import re
-from typing import List, Union
+from typing import List, Union, Tuple
 
 import cv2
 import numpy as np
 import torch
 from PIL import Image
-from omegaconf import OmegaConf
 
 from .args import DEFAULT_ARGS
 from .colorization import dispatch as dispatch_colorization, prepare as prepare_colorization
 from .detection import dispatch as dispatch_detection, prepare as prepare_detection
 from .ocr import dispatch as dispatch_ocr, prepare as prepare_ocr
-from .save import save_result
 from .upscaling import dispatch as dispatch_upscaling, prepare as prepare_upscaling
 from .utils import (
     BASE_PATH,
@@ -22,7 +20,6 @@ from .utils import (
     load_image,
     replace_prefix,
     rgb2hex,
-    hex2rgb,
     get_color_name,
     natural_sort,
     save_image_detect_result
@@ -88,7 +85,7 @@ class TextDetector:
     def using_gpu(self):
         return self.device.startswith('cuda') or self.device == 'mps'
 
-    async def detect_path(self, path: str, dest: str = None, params: dict = None):
+    async def detect_path(self, path: str, dest: str = None, params: dict = None) -> Tuple[bool, dict]:
         """
         Translates an image or folder (recursively) specified through the path.
         """
@@ -122,7 +119,13 @@ class TextDetector:
             else:
                 p, ext = os.path.splitext(dest)
                 _dest = f'{p}.{file_ext or ext[1:]}'
-            await self.detect_file(path, _dest, params)
+            tag, ctx = await self.detect_file(path, _dest, params)
+            result = {
+                'image': ctx.input.filename,
+                'detect_result': ctx.detect_result,
+                'tag': ctx.detect_tag,
+            }
+            return tag, result
 
         elif os.path.isdir(path):
             # Determine destination folder path
@@ -145,21 +148,21 @@ class TextDetector:
                     output_dest = replace_prefix(file_path, path, _dest)
                     p, ext = os.path.splitext(output_dest)
                     output_dest = f'{p}.{file_ext or ext[1:]}'
-
-                    if await self.detect_file(file_path, output_dest, params):
+                    tag, ctx = await self.detect_file(path, _dest, params)
+                    if tag:
                         translated_count += 1
             if translated_count == 0:
                 logger.info('No further untranslated files found. Use --overwrite to write over existing translations.')
             else:
                 logger.info(f'Done. Translated {translated_count} image{"" if translated_count == 1 else "s"}')
+            result = {
+                'image': ctx.input,
+                'detect_result': ctx.detect_result,
+                'tag': ctx.detect_tag,
+            }
+            return tag, result
 
-    async def detect_file(self, path: str, dest: str, params: dict):
-        if not params.get('overwrite') and os.path.exists(dest):
-            logger.info(
-                f'Skipping as already translated: "{dest}". Use --overwrite to overwrite existing translations.')
-            await self._report_progress('saved', True)
-            return True
-
+    async def detect_file(self, path: str, dest: str, params: dict) -> Tuple[bool, Context]:
         logger.info(f'Handling: "{path}"')
 
         # Turn dict to context to make values also accessible through params.<property>
@@ -185,51 +188,21 @@ class TextDetector:
                     logger.error(f'{e.__class__.__name__}: {e}',
                                  exc_info=e if self.verbose else None)
             attempts += 1
-        return False
+        return False, ctx
 
-    async def _detect_file(self, path: str, dest: str, ctx: Context):
-        if path.endswith('.txt'):
-            with open(path, 'r') as f:
-                queries = f.read().split('\n')
-            p, ext = os.path.splitext(dest)
-            if ext != '.txt':
-                dest = p + '.txt'
-            logger.info(f'Saving "{dest}"')
-            return True
+    async def _detect_file(self, path: str, dest: str, ctx: Context) -> Tuple[bool, Context]:
+        # Treat as image
+        try:
+            img = Image.open(path)
+            img.verify()
+            img = Image.open(path)
+        except Exception:
+            logger.warning(f'Failed to open image: {path}')
+            return False, ctx
 
-        else:  # Treat as image
-            try:
-                img = Image.open(path)
-                img.verify()
-                img = Image.open(path)
-            except Exception:
-                logger.warning(f'Failed to open image: {path}')
-                return False
+        ctx = await self.detect(img, ctx)
 
-            ctx = await self.detect(img, ctx)
-            result = ctx.result
-
-            # TODO: 可以删掉，或者替换为其他逻辑
-            # Save result
-            # if ctx.skip_no_text and not ctx.text_regions:
-            #     logger.debug('Not saving due to --skip-no-text')
-            #     return True
-            # if result:
-            #     logger.info(f'Saving "{dest}"')
-            #     save_result(result, dest, ctx)
-            #     await self._report_progress('saved', True)
-            #
-            #     if ctx.save_text or ctx.save_text_file or ctx.prep_manual:
-            #         if ctx.prep_manual:
-            #             # Save original image next to translated
-            #             p, ext = os.path.splitext(dest)
-            #             img_filename = p + '-orig' + ext
-            #             img_path = os.path.join(os.path.dirname(dest), img_filename)
-            #             img.save(img_path, quality=ctx.save_quality)
-            #         if ctx.text_regions:
-            #             self._save_text_to_file(path, ctx)
-            #     return True
-        return True
+        return True, ctx
 
     async def detect(self, image: Image.Image, params: Union[dict, Context] = None) -> Context:
         """
@@ -261,7 +234,7 @@ class TextDetector:
         await prepare_ocr(ctx.ocr, self.device)
         if ctx.colorizer:
             await prepare_colorization(ctx.colorizer)
-        # translate
+        # detect
         return await self._detect(ctx)
 
     def _preprocess_params(self, ctx: Context):
@@ -290,19 +263,8 @@ class TextDetector:
             ctx.renderer = 'none'
         ctx.setdefault('renderer', 'manga2eng' if ctx.manga2eng else 'default')
 
-        if ctx.gpt_config:
-            ctx.gpt_config = OmegaConf.load(ctx.gpt_config)
-
         if ctx.filter_text:
             ctx.filter_text = re.compile(ctx.filter_text)
-
-        if ctx.font_color:
-            colors = ctx.font_color.split(':')
-            try:
-                ctx.font_color_fg = hex2rgb(colors[0])
-                ctx.font_color_bg = hex2rgb(colors[1]) if len(colors) > 1 else None
-            except:
-                raise Exception(f'Invalid --font-color value: {ctx.font_color}. Use a hex value such as FF0000')
 
     async def _detect(self, ctx: Context) -> Context:
         image_filename = ctx.input.filename
@@ -335,8 +297,12 @@ class TextDetector:
             # If no text was found result is intermediate image product
             ctx.result = ctx.upscaled
             if ctx.json_path is None:
+                ctx.detect_result = "no text detected"
+                ctx.detect_tag = 1
                 await save_image_detect_result(image_filename, "no text detected", tag=1)
             else:
+                ctx.detect_result = "no text detected"
+                ctx.detect_tag = 1
                 await save_image_detect_result(image_filename, "no text detected", tag=1, json_path=ctx.json_path)
             return ctx
         if self.verbose:
@@ -353,14 +319,22 @@ class TextDetector:
             # If no text was found result is intermediate image product
             ctx.result = ctx.upscaled
             if ctx.json_path is None:
+                ctx.detect_result = "no text ocr"
+                ctx.detect_tag = 2
                 await save_image_detect_result(image_filename, "no text ocr", tag=2)
             else:
+                ctx.detect_result = "no text ocr"
+                ctx.detect_tag = 2
                 await save_image_detect_result(image_filename, "no text ocr", tag=2, json_path=ctx.json_path)
             return ctx
 
         if ctx.json_path is None:
+            ctx.detect_result = "some text detected"
+            ctx.detect_tag = 0
             await save_image_detect_result(image_filename, "some text detected", tag=0)
         else:
+            ctx.detect_result = "some text detected"
+            ctx.detect_tag = 0
             await save_image_detect_result(image_filename, "some text detected", tag=0, json_path=ctx.json_path)
 
         if not ctx.text_regions:

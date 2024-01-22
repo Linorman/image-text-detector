@@ -17,8 +17,6 @@ from .utils import (
 )
 
 
-# TODO: Dynamic imports to reduce ram usage in web(-server) mode. Will require dealing with args.py imports.
-
 async def dispatch(args: Namespace):
     args_dict = vars(args)
 
@@ -27,18 +25,23 @@ async def dispatch(args: Namespace):
     if args.mode in ('demo', 'batch'):
         if not args.input:
             raise Exception('No input image was supplied. Use -i <image_path>')
-        translator = TextDetector(args_dict)
+        detector = TextDetector(args_dict)
         if args.mode == 'demo':
             if len(args.input) != 1 or not os.path.isfile(args.input[0]):
                 raise FileNotFoundError(
                     f'Invalid single image file path for demo mode: "{" ".join(args.input)}". Use `-m batch`.')
             dest = os.path.join(BASE_PATH, 'result/final.png')
             args.overwrite = True  # Do overwrite result/final.png file
-            await translator.detect_path(args.input[0], dest, args_dict)
+            tag, ctx = await detector.detect_path(args.input[0], dest, args_dict)
         else:  # batch
             dest = args.dest
-            for path in natural_sort(args.input):
-                await translator.detect_path(path, dest, args_dict)
+            dir = args.input[0]
+            if not os.path.isdir(dir):
+                raise NotADirectoryError(f'Invalid directory path: {dir}')
+            for filename in natural_sort(os.listdir(dir)):
+                if filename.endswith('.png') or filename.endswith('.jpg') or filename.endswith('.webp'):
+                    file_path = os.path.join(dir, filename)
+                    tag, ctx = await detector.detect_path(file_path, dest, args_dict)
 
 
 if __name__ == '__main__':

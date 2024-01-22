@@ -5,3 +5,5 @@ colorama.init(autoreset=True)
 load_dotenv()
 
 from .image_text_detector import *
+
+from .detector_api import *
