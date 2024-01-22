@@ -20,3 +20,26 @@ pip install git+https://github.com/kodalli/pydensecrf.
 python -m image_text_detector --verbose --mode [your_mode] -i [your_image_path]
 ```
 You can use `python -m image_text_detector --help` to see the help message (though some of parameters are not supported yet).
+
+If you want to use the model in your own project, you can use the following code:
+```python
+import asyncio
+from argparse import Namespace
+
+from image_text_detector import TextDetectorApi
+
+if __name__ == '__main__':
+    # batch mode
+    args = Namespace(
+        mode='batch',
+        input=['F:\\Lenevo\\Desktop\\image-text-detector\\casts'],
+        verbose=False,
+    )
+    detector = TextDetectorApi()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    results = loop.run_until_complete(detector.detect(args))
+    print(results)
+    loop.close()
+```
+In args, you can set different parameters to control the behavior of the detector. And the `results` is a list of dict.

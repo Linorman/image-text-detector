@@ -15,3 +15,4 @@ if __name__ == '__main__':
     asyncio.set_event_loop(loop)
     results = loop.run_until_complete(detector.detect(args))
     print(results)
+    loop.close()

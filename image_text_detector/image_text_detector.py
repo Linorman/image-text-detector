@@ -120,6 +120,18 @@ class TextDetector:
                 p, ext = os.path.splitext(dest)
                 _dest = f'{p}.{file_ext or ext[1:]}'
             tag, ctx = await self.detect_file(path, _dest, params)
+            if ctx.detect_tag == 0:
+                texts = []
+                for textline in ctx.textlines:
+                    texts.append(textline.text)
+
+                result = {
+                    'image': ctx.input.filename,
+                    'detect_result': ctx.detect_result,
+                    'tag': ctx.detect_tag,
+                    'texts': texts,
+                }
+                return tag, result
             result = {
                 'image': ctx.input.filename,
                 'detect_result': ctx.detect_result,
